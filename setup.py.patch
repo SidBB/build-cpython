@@ -1,6 +1,6 @@
---- setup.py.orig	2019-08-03 12:06:37.000000000 -0400
-+++ setup.py.new	2019-08-03 12:39:44.000000000 -0400
-@@ -846,10 +846,13 @@
+--- setup.py.orig	2019-08-04 07:25:02.000000000 -0400
++++ setup.py.new	2019-08-04 08:17:33.000000000 -0400
+@@ -846,6 +846,7 @@
          exts.append( Extension('_socket', ['socketmodule.c'],
                                 depends = ['socketmodule.h']) )
          # Detect SSL support for the socket module (via _ssl)
@@ -8,46 +8,47 @@
          search_for_ssl_incs_in = [
                                '/usr/local/ssl/include',
                                '/usr/contrib/ssl/include/'
-                              ]
-+        if openssl_root is not None:
-+            search_for_ssl_incs_in.insert(0, os.path.join(openssl_root, 'include'))
-         ssl_incs = find_file('openssl/ssl.h', inc_dirs,
-                              search_for_ssl_incs_in
-                              )
-@@ -862,14 +865,27 @@
-                                      ['/usr/local/ssl/lib',
+@@ -863,7 +864,15 @@
                                        '/usr/contrib/ssl/lib/'
                                       ] )
+ 
+-        if (ssl_incs is not None and
 +        if openssl_root is not None:
-+            if ssl_libs is None:
-+                ssl_libs = []
-+            ssl_libs.insert(0, os.path.join(openssl_root, 'lib'))
- 
-         if (ssl_incs is not None and
++            exts.append( Extension('_ssl', ['_ssl.c'],
++                include_dirs = [ os.path.join(openssl_root, 'include') ],
++                library_dirs = [],
++                libraries = [],
++                extra_link_args = [ os.path.join(openssl_root, 'lib/libssl.a'),
++                    os.path.join(openssl_root, 'lib/libcrypto.a'), '-ldl' ],
++                depends = ['socketmodule.h']))
++        elif (ssl_incs is not None and
              ssl_libs is not None):
--            exts.append( Extension('_ssl', ['_ssl.c'],
--                                   include_dirs = ssl_incs,
--                                   library_dirs = ssl_libs,
--                                   libraries = ['ssl', 'crypto'],
--                                   depends = ['socketmodule.h']), )
-+            if openssl_root is not None:
-+                exts.append( Extension('_ssl', ['_ssl.c'],
-+                    include_dirs = ssl_incs,
-+                    library_dirs = [],
-+                    libraries = [],
-+                    extra_link_args = [ os.path.join(openssl_root, 'lib/libssl.a'),
-+                        os.path.join(openssl_root, 'lib/libcrypto.a'), '-ldl' ],
-+                    depends = ['socketmodule.h']))
-+            else:
-+                exts.append( Extension('_ssl', ['_ssl.c'],
-+                    include_dirs = ssl_incs,
-+                    library_dirs = ssl_libs,
-+                    libraries = ['ssl', 'crypto'],
-+                    depends = ['socketmodule.h']), )
-         else:
-             missing.append('_ssl')
+             exts.append( Extension('_ssl', ['_ssl.c'],
+                                    include_dirs = ssl_incs,
+@@ -879,7 +888,11 @@
+             r'^\s*#\s*define\s+OPENSSL_VERSION_NUMBER\s+(0x[0-9a-fA-F]+)' )
  
-@@ -905,11 +921,20 @@
+         # look for the openssl version header on the compiler search path.
+-        opensslv_h = find_file('openssl/opensslv.h', [],
++        opensslv_h = []
++        if openssl_root is not None:
++            opensslv_h = [ os.path.join(openssl_root, 'include') ]
++        else:
++            opensslv_h = find_file('openssl/opensslv.h', [],
+                 inc_dirs + search_for_ssl_incs_in)
+         if opensslv_h:
+             name = os.path.join(opensslv_h[0], 'openssl/opensslv.h')
+@@ -897,7 +910,8 @@
+ 
+         #print('openssl_ver = 0x%08x' % openssl_ver)
+         min_openssl_ver = 0x00907000
+-        have_any_openssl = ssl_incs is not None and ssl_libs is not None
++        have_any_openssl = openssl_root is not None or (ssl_incs is not None and 
++            ssl_libs is not None)
+         have_usable_openssl = (have_any_openssl and
+                                openssl_ver >= min_openssl_ver)
+ 
+@@ -905,11 +919,20 @@
              if have_usable_openssl:
                  # The _hashlib module wraps optimized implementations
                  # of hash functions from the OpenSSL library.
@@ -59,10 +60,10 @@
 +                if openssl_root is not None:
 +                    exts.append( Extension('_hashlib', ['_hashopenssl.c'],
 +                        depends = ['hashlib.h'],
-+                        include_dirs = ssl_incs,
++                        include_dirs = [ os.path.join(openssl_root, 'include') ],
 +                        library_dirs = [],
 +                        libraries = [],
-+                        extra_link_args = [ os.path.join(openssl_root, 'lib/libssl.a'),
++                        extra_link_args = [ os.path.join(openssl_root, 'lib/libssl.a'), 
 +                            os.path.join(openssl_root, 'lib/libcrypto.a'), '-ldl' ]))
 +                else:
 +                    exts.append( Extension('_hashlib', ['_hashopenssl.c'],
